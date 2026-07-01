@@ -29,6 +29,8 @@ echo "Restarting ${SERVICE}..."
 sudo systemctl restart "${SERVICE}"
 
 echo "Status:"
-sudo systemctl --no-pager status "${SERVICE}" || true
+# No sudo: reading status doesn't need root, and this avoids a password prompt for the
+# --no-pager variant that isn't covered by the scoped sudoers rule.
+systemctl --no-pager status "${SERVICE}" || true
 
 echo "Update complete."
