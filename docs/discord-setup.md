@@ -67,7 +67,10 @@ The bot does **not** add reactions itself (users react to acknowledge reminders)
    Read Message History, Embed Links). This produces the permissions integer **`84992`**.
 4. Copy the generated URL — it looks like:
    ```
+   #Prod
    https://discord.com/oauth2/authorize?client_id=1521661969503883295&permissions=580550729624640&integration_type=0&scope=bot
+   #Dev
+   https://discord.com/oauth2/authorize?client_id=1521673429156364408&permissions=580550729624640&integration_type=0&scope=bot
    ```
 5. Open it in a browser, pick your family server, and **Authorize**. You must have
    *Manage Server* on that server to add a bot.
