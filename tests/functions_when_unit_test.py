@@ -55,6 +55,13 @@ def test_unknown_unit_raises():
         parse_when("in 5 fortnights", _now(), TZ, DEFAULT)
 
 
+def test_absurd_offset_raises_valueerror_not_overflow():
+    # A huge offset overflows timedelta; it must surface as ValueError (which the
+    # command handler catches) rather than an uncaught OverflowError.
+    with pytest.raises(ValueError):
+        parse_when("in 9999999999 days", _now(), TZ, DEFAULT)
+
+
 # ---------------- anchors + times ----------------
 
 

@@ -179,14 +179,17 @@ def _parse_one_time(
         seconds = _UNIT_SECONDS.get(rel.group(2))
         if seconds is None:
             raise ValueError(f"unknown time unit '{rel.group(2)}'")
-        return now_local.astimezone(datetime.timezone.utc) + datetime.timedelta(seconds=int(rel.group(1)) * seconds)
+        try:
+            return now_local.astimezone(datetime.timezone.utc) + datetime.timedelta(seconds=int(rel.group(1)) * seconds)
+        except OverflowError as exc:  # absurd offset like "in 9999999999 days"
+            raise ValueError("offset too far in the future") from exc
 
     # Explicit ISO date / datetime.
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", lowered):
-        hour, minute = parse_time(default_time)
-        return _to_utc(
-            datetime.datetime.combine(datetime.date.fromisoformat(lowered), datetime.time(hour, minute)), timezone_name
+        midnight = datetime.datetime.combine(
+            datetime.date.fromisoformat(lowered), datetime.time(*parse_time(default_time))
         )
+        return _to_utc(midnight, timezone_name)
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}(:\d{2})?", lowered):
         return _to_utc(datetime.datetime.fromisoformat(lowered.replace("t", " ")), timezone_name)
 

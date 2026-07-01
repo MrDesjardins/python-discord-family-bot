@@ -1,5 +1,6 @@
 """The /setreminder command and reminder management."""
 
+import datetime
 from typing import Optional
 
 import discord
@@ -53,7 +54,7 @@ class RemindersCog(commands.Cog):
     )
     @app_commands.describe(
         message="What to be reminded about.",
-        when="When to remind you: tap a suggestion, or type 'tomorrow', 'in 3 days', 'fri 6pm'. Empty = daily.",
+        when="Tap a suggestion, or type e.g. 'tomorrow', 'in 3 days', 'fri 6pm', '2026-07-15 18:00'. Empty = daily.",
     )
     @app_commands.autocomplete(when=when_autocomplete)
     async def set_reminder(
@@ -111,6 +112,13 @@ class RemindersCog(commands.Cog):
             remind_at_utc = parsed.remind_at_utc
             assert remind_at_utc is not None  # non-recurring always carries an instant
             local_when = remind_at_utc.astimezone(get_tz(timezone_name)).strftime("%a %b %d at %H:%M")
+            if remind_at_utc <= datetime.datetime.now(datetime.timezone.utc):
+                await interaction.followup.send(
+                    f"That time (**{local_when}**, {timezone_name}) is already in the past. "
+                    "Try `tomorrow`, a later time today, or a date like `2026-07-15 18:00`.",
+                    ephemeral=True,
+                )
+                return
             reminder_id = create_onetime_reminder(guild.id, channel.id, author.id, message, remind_at_utc)
             posted = await channel.send(
                 f"📅 **Reminder set** for {author.mention} on **{local_when}** ({timezone_name}): {message}"
