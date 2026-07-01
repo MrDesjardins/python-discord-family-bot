@@ -91,7 +91,9 @@ class TasksCog(commands.Cog):
             print_error_log(f"_send_ping: channel {reminder.channel_id} missing for reminder {reminder.id}")
             return False
         prefix = "🔁 Daily reminder" if recurring else "📅 Reminder"
-        suffix = "\n_React on the original reminder message with any emoji to stop._" if recurring else ""
+        # Asterisk italics (not `_`): a reminder whose text contains an underscore
+        # (e.g. "file_name") would otherwise break underscore-italic pairing.
+        suffix = "\n*React on the original reminder message with any emoji to stop.*" if recurring else ""
         try:
             posted = await channel.send(f"{prefix} for <@{reminder.author_id}>: {reminder.content}{suffix}")
             # Archive the ping so the AI can answer "how many times was I reminded about X?".

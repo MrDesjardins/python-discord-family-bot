@@ -57,9 +57,12 @@ tests swap the database file via `set_database_name()`.
 
 ## Data flow
 
-**Reminder (recurring)**: `/setreminder` → `reminder_data_access.create_recurring_reminder`
-→ posts a message, stores its id → `tasks.reminder_loop` (60s) pings daily at the
-configured time → emoji reaction → `reminders.on_raw_reaction_add` → `acknowledge_reminder`.
+**Reminder (recurring)**: `/setreminder` (empty `when`) → `functions_when.parse_when` →
+`reminder_data_access.create_recurring_reminder` → posts a message, stores its id →
+`tasks.reminder_loop` (60s) pings daily at the configured time → emoji reaction →
+`reminders.on_raw_reaction_add` → `acknowledge_reminder`. A one-time `when`
+("tomorrow", "fri 6pm", ISO date) instead routes to `create_onetime_reminder`; the
+`when` field is typed with `functions_when.suggest_when` autocomplete.
 
 **Calendar**: `calendar_cog.poll_loop` (configurable interval) → `google_calendar.fetch_upcoming_events`
 → `calendar_data_access.upsert_event` → `reminder_loop` (60s) → `get_events_needing_reminder`

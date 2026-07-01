@@ -8,7 +8,10 @@ learned** so we don't repeat it.
 
 A private family Discord bot with three features:
 - **Reminders**: `/setreminder` posts to a configured channel and pings the author daily
-  (until acknowledged with an emoji) or once on a specific date.
+  (until acknowledged with an emoji) or once at a chosen time. The `when` field takes a
+  natural expression ("tomorrow", "in 3 days", "fri 6pm", "2026-07-15 18:00") with
+  tap-friendly autocomplete; empty `when` means recurring daily. Parsing lives in the pure
+  `deps/functions_when.py` (`parse_when` / `suggest_when`).
 - **Google Calendar**: mirrors the "Équipe PM" calendar and reminds 30 min before events.
 - **Daily summary**: posts a morning digest of the day's calendar events and reminders to the
   calendar channel at a configurable time (`daily_summary` in `config.yaml`).
@@ -35,7 +38,8 @@ Always run `make test` and `make lint` before declaring work done.
 - **deps/**: `config.py` (YAML), `database.py` (`database_manager`, SQLite+WAL),
   `*_data_access.py` (all SQL; incl. `bot_state_data_access.py` key/value store),
   `google_calendar.py`, `daily_summary.py` (pure digest logic), `ai/` (embeddings +
-  OpenAI), `functions_date.py`, `models.py`, `values.py`, `log.py`.
+  OpenAI), `functions_date.py`, `functions_when.py` (natural-language "when" parser),
+  `models.py`, `values.py`, `log.py`.
 
 ## Conventions
 

@@ -7,7 +7,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from deps.config import get_config
-from deps.functions_date import local_datetime_to_utc, parse_time
+from deps.functions_date import get_tz, now_in_tz
+from deps.functions_when import parse_when, suggest_when
 from deps.log import print_error_log, print_log
 from deps.mybot import MyBot
 from deps.reminder_data_access import (
@@ -32,23 +33,36 @@ class RemindersCog(commands.Cog):
     def __init__(self, bot: MyBot) -> None:
         self.bot = bot
 
+    async def when_autocomplete(  # pylint: disable=unused-argument
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        """Offer tap-friendly time suggestions as the user fills in ``when`` (interaction unused)."""
+        config = get_config()
+        try:
+            pairs = suggest_when(
+                current, now_in_tz(config.reminders.timezone), config.reminders.timezone, config.reminders.default_time
+            )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            print_error_log(f"reminders.when_autocomplete: {exc}")
+            return []
+        return [app_commands.Choice(name=label[:100], value=value[:100]) for label, value in pairs]
+
     @app_commands.command(
         name=COMMAND_SET_REMINDER,
-        description="Create a reminder. Without a date it repeats daily until you react with any emoji.",
+        description="Create a reminder. Leave 'when' empty to repeat daily until you react with any emoji.",
     )
     @app_commands.describe(
         message="What to be reminded about.",
-        date="Optional one-time date (YYYY-MM-DD). With a date it pings only that day.",
-        time="Optional time (HH:MM, 24h). Defaults to 08:30.",
+        when="When to remind you: tap a suggestion, or type 'tomorrow', 'in 3 days', 'fri 6pm'. Empty = daily.",
     )
+    @app_commands.autocomplete(when=when_autocomplete)
     async def set_reminder(
         self,
         interaction: discord.Interaction,
         message: str,
-        date: Optional[str] = None,
-        time: Optional[str] = None,
+        when: Optional[str] = None,
     ) -> None:
-        """Create a recurring (default) or one-time (with date) reminder."""
+        """Create a recurring (default) or one-time reminder from a natural 'when'."""
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         if guild is None:
@@ -65,25 +79,28 @@ class RemindersCog(commands.Cog):
             return
 
         timezone_name = config.reminders.timezone
-        default_time = config.reminders.default_time
 
-        # Validate time early so we can give a clean error.
         try:
-            parse_time(time)
+            parsed = parse_when(when, now_in_tz(timezone_name), timezone_name, config.reminders.default_time)
         except (ValueError, IndexError):
-            await interaction.followup.send("Invalid time. Use HH:MM, e.g. `08:30`.", ephemeral=True)
+            await interaction.followup.send(
+                "I couldn't understand that time. Try `tomorrow`, `in 3 days`, `fri 6pm`, "
+                "or a date like `2026-07-15 18:00`.",
+                ephemeral=True,
+            )
             return
 
         author = interaction.user
 
-        if date is None:
-            # Recurring daily reminder until acknowledged with an emoji.
-            remind_time = time or default_time
+        if parsed.recurring:
+            remind_time = parsed.remind_time or config.reminders.default_time
             reminder_id = create_recurring_reminder(guild.id, channel.id, author.id, message, remind_time)
             posted = await channel.send(
                 f"🔁 **Daily reminder** for {author.mention}: {message}\n"
-                f"_I'll ping you every day at {remind_time} ({timezone_name}). "
-                f"React to this message with any emoji to stop._"
+                # Asterisk italics (not `_`): the timezone name contains an underscore
+                # (e.g. America/Los_Angeles) which breaks underscore-italic pairing.
+                f"*I'll ping you every day at {remind_time} ({timezone_name}). "
+                f"React to this message with any emoji to stop.*"
             )
             set_reminder_message_id(reminder_id, posted.id)
             await interaction.followup.send(
@@ -91,21 +108,16 @@ class RemindersCog(commands.Cog):
             )
             print_log(f"reminders: created recurring reminder {reminder_id} for guild {guild.id}")
         else:
-            # One-time reminder at a specific date/time.
-            remind_time = time or default_time
-            try:
-                remind_at_utc = local_datetime_to_utc(date, remind_time, timezone_name)
-            except (ValueError, IndexError):
-                await interaction.followup.send("Invalid date. Use YYYY-MM-DD, e.g. `2026-07-15`.", ephemeral=True)
-                return
+            remind_at_utc = parsed.remind_at_utc
+            assert remind_at_utc is not None  # non-recurring always carries an instant
+            local_when = remind_at_utc.astimezone(get_tz(timezone_name)).strftime("%a %b %d at %H:%M")
             reminder_id = create_onetime_reminder(guild.id, channel.id, author.id, message, remind_at_utc)
             posted = await channel.send(
-                f"📅 **Reminder set** for {author.mention} on **{date} at {remind_time}** "
-                f"({timezone_name}): {message}"
+                f"📅 **Reminder set** for {author.mention} on **{local_when}** ({timezone_name}): {message}"
             )
             set_reminder_message_id(reminder_id, posted.id)
             await interaction.followup.send(
-                f"One-time reminder created in {channel.mention} for {date} at {remind_time} (id `{reminder_id}`).",
+                f"One-time reminder created in {channel.mention} for {local_when} (id `{reminder_id}`).",
                 ephemeral=True,
             )
             print_log(f"reminders: created one-time reminder {reminder_id} for guild {guild.id}")
