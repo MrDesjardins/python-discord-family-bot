@@ -3,7 +3,7 @@ name = "python-discord-family-bot"
 version = "0.1.0"
 description = "A Discord bot for a family server: reminders + AI Q&A grounded on family chat history."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "discord-py==2.4.0",
     "python-dotenv==1.0.1",

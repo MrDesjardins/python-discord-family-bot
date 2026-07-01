@@ -35,7 +35,7 @@ Quick version (full walkthrough with intents, permissions, and troubleshooting i
 4. Enable **Developer Mode** (Settings → Advanced) to copy the server ID and channel IDs
    into `config.yaml`.
 
-### 2. Install locally (Python 3.10–3.12)
+### 2. Install locally (Python 3.12+)
 
 ```bash
 uv venv --python 3.12 .venv
