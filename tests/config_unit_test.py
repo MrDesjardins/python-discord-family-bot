@@ -21,6 +21,8 @@ def test_parse_minimal_applies_defaults():
     assert cfg.reminders.default_time == "08:30"
     assert cfg.reminders.timezone == "America/Los_Angeles"
     assert cfg.calendar.reminder_lead_minutes == 30
+    assert cfg.daily_summary.enabled is False
+    assert cfg.daily_summary.time == "08:00"
 
 
 def test_parse_overrides():
@@ -29,6 +31,7 @@ def test_parse_overrides():
     data["ai"] = {"model": "gpt-4o", "max_context_messages": 25, "similarity_weight": 0.5}
     data["reminders"] = {"default_time": "07:00", "timezone": "UTC"}
     data["calendar"] = {"enabled": True, "name": "Team", "reminder_lead_minutes": 15}
+    data["daily_summary"] = {"enabled": True, "time": "07:15"}
     cfg = parse_config(data)
     assert cfg.channels.ai == 333
     assert cfg.ai.model == "gpt-4o"
@@ -39,6 +42,15 @@ def test_parse_overrides():
     assert cfg.calendar.enabled is True
     assert cfg.calendar.name == "Team"
     assert cfg.calendar.reminder_lead_minutes == 15
+    assert cfg.daily_summary.enabled is True
+    assert cfg.daily_summary.time == "07:15"
+
+
+def test_bad_daily_summary_time_raises():
+    data = _minimal()
+    data["daily_summary"] = {"enabled": True, "time": "0800"}  # missing colon
+    with pytest.raises(ValueError):
+        parse_config(data)
 
 
 def test_missing_required_field_raises():

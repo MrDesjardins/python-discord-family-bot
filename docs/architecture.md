@@ -9,7 +9,7 @@ bot.py
               ├─ cogs/events.py        on_ready (command sync), on_message (archive + AI mention)
               ├─ cogs/reminders.py     /setreminder, /listreminders, /cancelreminder, emoji ack
               ├─ cogs/calendar_cog.py  poll Google Calendar + 30-min event reminders
-              ├─ cogs/tasks.py         reminder dispatch loop + embedding backfill loop
+              ├─ cogs/tasks.py         reminder dispatch + daily-summary + embedding backfill loops
               └─ cogs/admin.py         /reloadconfig
 
 deps/                         business logic + data access (no Discord types leak in)
@@ -64,6 +64,11 @@ configured time → emoji reaction → `reminders.on_raw_reaction_add` → `ackn
 **Calendar**: `calendar_cog.poll_loop` (configurable interval) → `google_calendar.fetch_upcoming_events`
 → `calendar_data_access.upsert_event` → `reminder_loop` (60s) → `get_events_needing_reminder`
 (start within lead window, not reminded) → post + `mark_event_reminded`.
+
+**Daily summary**: `tasks.daily_summary_loop` (60s) → `daily_summary.is_summary_due` (once per
+day at the configured time) → `get_events_in_range` (today) + `reminders_for_day` →
+`daily_summary.format_summary` → post to the calendar channel (archived for the AI). The last
+posted date is persisted via `bot_state_data_access` so a restart doesn't re-post it.
 
 **AI**: every guild message → `events.on_message` → `message_data_access.store_message`
 → `tasks.embedding_loop` (30s) embeds new rows → `@mention` → `ai_functions.answer_question`

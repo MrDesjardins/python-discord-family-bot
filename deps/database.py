@@ -71,6 +71,7 @@ class DatabaseManager:
         cur.execute("DROP TABLE IF EXISTS reminder")
         cur.execute("DROP TABLE IF EXISTS message")
         cur.execute("DROP TABLE IF EXISTS calendar_event")
+        cur.execute("DROP TABLE IF EXISTS bot_state")
         self.get_conn().commit()
         self.init_database()
 
@@ -139,6 +140,17 @@ class DatabaseManager:
         )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_event(start_utc)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_calendar_reminded ON calendar_event(reminded)")
+
+        # Small key/value store for cross-restart bot state (e.g. the day the daily
+        # summary was last posted, so a restart doesn't re-post it).
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS bot_state (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            )
+            """
+        )
 
         self.get_conn().commit()
 

@@ -5,6 +5,7 @@ import datetime
 from deps.calendar_data_access import (
     delete_past_events,
     get_all_events,
+    get_events_in_range,
     get_events_needing_reminder,
     mark_event_reminded,
     upsert_event,
@@ -56,3 +57,24 @@ def test_calendar_crud_on_seeded_copy(system_db):
     deleted = delete_past_events(now - datetime.timedelta(days=1))
     assert deleted == 1
     assert "evt-past" not in {e.event_id for e in get_all_events()}
+
+
+def test_get_events_in_range_selects_only_the_window(system_db):  # pylint: disable=unused-argument
+    """get_events_in_range returns events whose start falls inside [start, end)."""
+    base = datetime.datetime(2030, 5, 10, 12, 0, tzinfo=datetime.timezone.utc)
+    for offset_hours, event_id in ((-2, "before"), (1, "inside"), (26, "after")):
+        upsert_event(
+            CalendarEvent(
+                event_id=event_id,
+                calendar_id="cal1",
+                summary=event_id,
+                description=None,
+                location=None,
+                start_utc=base + datetime.timedelta(hours=offset_hours),
+                end_utc=None,
+                html_link=None,
+            )
+        )
+    window_start = base
+    window_end = base + datetime.timedelta(hours=24)
+    assert [e.event_id for e in get_events_in_range(window_start, window_end)] == ["inside"]

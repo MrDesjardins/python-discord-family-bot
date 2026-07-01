@@ -37,3 +37,8 @@ calendar:
   reminder_lead_minutes: 30      # ping this many minutes before each event
   poll_interval_minutes: 15      # how often to refresh events from Google
   lookahead_hours: 48            # how far ahead to sync events
+
+# Daily summary posted to the calendar channel: the day's events + reminders.
+daily_summary:
+  enabled: false                 # set true to post a digest every morning
+  time: "08:00"                  # HH:MM (24h) in the reminders timezone

@@ -18,6 +18,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from deps.functions_date import parse_time
+
 DEFAULT_CONFIG_PATH = os.getenv("CONFIG_FILE", "config.yaml")
 
 
@@ -50,6 +52,14 @@ class RemindersConfig:
 
 
 @dataclasses.dataclass
+class DailySummaryConfig:
+    """Daily digest of the day's calendar events and reminders."""
+
+    enabled: bool = False
+    time: str = "08:00"  # HH:MM (24h) in the reminders timezone
+
+
+@dataclasses.dataclass
 class CalendarConfig:
     """Google Calendar reminder settings."""
 
@@ -70,6 +80,7 @@ class Config:
     ai: AIConfig
     reminders: RemindersConfig
     calendar: CalendarConfig
+    daily_summary: DailySummaryConfig
 
 
 def _require(mapping: Dict[str, Any], key: str, context: str) -> Any:
@@ -86,6 +97,7 @@ def parse_config(data: Dict[str, Any]) -> Config:
     ai_raw = data.get("ai") or {}
     reminders_raw = data.get("reminders") or {}
     calendar_raw = data.get("calendar") or {}
+    daily_summary_raw = data.get("daily_summary") or {}
 
     channels = ChannelsConfig(
         reminder=int(_require(channels_raw, "reminder", "channels.")),
@@ -111,12 +123,20 @@ def parse_config(data: Dict[str, Any]) -> Config:
         poll_interval_minutes=int(calendar_raw.get("poll_interval_minutes", CalendarConfig.poll_interval_minutes)),
         lookahead_hours=int(calendar_raw.get("lookahead_hours", CalendarConfig.lookahead_hours)),
     )
+    daily_summary = DailySummaryConfig(
+        enabled=bool(daily_summary_raw.get("enabled", DailySummaryConfig.enabled)),
+        time=daily_summary_raw.get("time", DailySummaryConfig.time),
+    )
+    # Validate the summary time at load time so a typo fails loudly here instead of
+    # silently killing the background loop on its first tick.
+    parse_time(daily_summary.time)
     return Config(
         guild_id=int(_require(data, "guild_id", "")),
         channels=channels,
         ai=ai,
         reminders=reminders,
         calendar=calendar,
+        daily_summary=daily_summary,
     )
 
 

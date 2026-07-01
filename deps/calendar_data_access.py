@@ -73,6 +73,16 @@ def get_events_needing_reminder(now_utc: datetime.datetime, lead_minutes: int) -
     return [CalendarEvent.from_db_row(row) for row in cur.fetchall()]
 
 
+def get_events_in_range(start_utc: datetime.datetime, end_utc: datetime.datetime) -> List[CalendarEvent]:
+    """Return events that start within ``[start_utc, end_utc)`` (used for the daily summary)."""
+    cur = database_manager.get_cursor()
+    cur.execute(
+        f"{SELECT_CALENDAR_EVENT} WHERE start_utc >= ? AND start_utc < ? ORDER BY start_utc",
+        (start_utc, end_utc),
+    )
+    return [CalendarEvent.from_db_row(row) for row in cur.fetchall()]
+
+
 def mark_event_reminded(event_id: str) -> None:
     """Mark an event as reminded so it is not pinged again."""
     cur = database_manager.get_cursor()

@@ -10,6 +10,8 @@ A private family Discord bot with three features:
 - **Reminders**: `/setreminder` posts to a configured channel and pings the author daily
   (until acknowledged with an emoji) or once on a specific date.
 - **Google Calendar**: mirrors the "Équipe PM" calendar and reminds 30 min before events.
+- **Daily summary**: posts a morning digest of the day's calendar events and reminders to the
+  calendar channel at a configurable time (`daily_summary` in `config.yaml`).
 - **AI Q&A**: `@`-mention answers via OpenAI, grounded on archived family chat retrieved
   with local sentence-transformers embeddings (similarity × recency).
 
@@ -29,10 +31,11 @@ Always run `make test` and `make lint` before declaring work done.
 
 - **Entry**: `bot.py` → `deps/bot_singleton.py` → `deps/mybot.py` (auto-loads `cogs/*`).
 - **Cogs**: `events.py` (sync, archive, AI mention), `reminders.py`, `calendar_cog.py`,
-  `tasks.py` (reminder + embedding loops), `admin.py` (`/reloadconfig`).
+  `tasks.py` (reminder + daily-summary + embedding loops), `admin.py` (`/reloadconfig`).
 - **deps/**: `config.py` (YAML), `database.py` (`database_manager`, SQLite+WAL),
-  `*_data_access.py` (all SQL), `google_calendar.py`, `ai/` (embeddings + OpenAI),
-  `functions_date.py`, `models.py`, `values.py`, `log.py`.
+  `*_data_access.py` (all SQL; incl. `bot_state_data_access.py` key/value store),
+  `google_calendar.py`, `daily_summary.py` (pure digest logic), `ai/` (embeddings +
+  OpenAI), `functions_date.py`, `models.py`, `values.py`, `log.py`.
 
 ## Conventions
 
@@ -76,6 +79,10 @@ are read from the project folder; passwordless via SSH keys + scoped NOPASSWD su
   feature was dropped.)
 - **`cursor.lastrowid` is `int | None`** — wrap as `int(cur.lastrowid or 0)` to satisfy
   mypy and avoid a None surprise.
+- **Don't add a `timedelta` to a pytz-localized datetime across a DST boundary.** The
+  result keeps the original fixed offset, so `midnight + 1 day` is an hour off on
+  spring-forward/fall-back days. Localize each wall-clock time independently
+  (`tz.localize(naive + timedelta(days=1))`), as `daily_summary.day_bounds_utc` does.
 - **`Cog.cog_unload` must be `async def`** in discord.py (the base method is a coroutine);
   a sync override fails mypy and may not be awaited.
 - **System-test seed data must use stable dates** (e.g. far-future) so real-time-based
