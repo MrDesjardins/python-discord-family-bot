@@ -1,0 +1,25 @@
+[Unit]
+Description=Family Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# WorkingDirectory makes the bot read ./.env and ./config.yaml from this folder.
+WorkingDirectory=/home/pdesjardins/code/python-discord-family-bot
+ExecStart=/home/pdesjardins/.local/bin/uv run /home/pdesjardins/code/python-discord-family-bot/bot.py
+ExecStartPre=/bin/sleep 5
+Restart=on-failure
+RestartSec=10
+User=pdesjardins
+Group=pdesjardins
+
+# .env is loaded by python-dotenv from WorkingDirectory. ENV=prod selects BOT_TOKEN.
+Environment=ENV=prod
+Environment=PYTHONUNBUFFERED=1
+Environment="PATH=/home/pdesjardins/.local/bin:/usr/local/bin:/usr/bin:/bin:/home/pdesjardins/code/python-discord-family-bot/.venv/bin"
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

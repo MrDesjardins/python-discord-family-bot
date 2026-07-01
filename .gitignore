@@ -1,0 +1,45 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+config.yaml
+# Google service-account key (secret)
+service_account*.json
+*service-account*.json
+google_credentials*.json
+
+# Logs
+app.log
+*.log
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+
+# Caches
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Models (sentence-transformers download cache, if redirected here)
+.model_cache/
+
+# Editor
+.vscode/
+.idea/

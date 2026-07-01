@@ -1,0 +1,39 @@
+# Non-secret configuration for the family bot.
+# Copy to config.yaml and fill in your IDs. config.yaml is gitignored.
+# Secrets (BOT_TOKEN, OPENAI_API_KEY, GOOGLE_SERVICE_ACCOUNT_FILE) live in .env, NOT here.
+
+# Your Discord server (guild) ID. Enable Developer Mode in Discord, then
+# right-click the server icon -> Copy Server ID.
+guild_id: 000000000000000000
+
+# Channel IDs (right-click a channel -> Copy Channel ID).
+channels:
+  reminder: 000000000000000000   # where /setreminder posts and pings
+  calendar: 000000000000000000   # where calendar event reminders are posted
+  ai: 000000000000000000         # optional: restrict @-mention answers to this channel; omit/null to allow anywhere
+
+# AI Q&A tuning (the OpenAI API key itself is a secret in .env).
+ai:
+  model: gpt-4o-mini
+  embedding_model: all-MiniLM-L6-v2
+  max_context_messages: 50       # how many past messages to retrieve as context
+  recency_halflife_days: 14      # recent messages weighted higher; this is the half-life
+  similarity_weight: 0.7         # 0..1 blend of semantic similarity vs. recency
+
+# Reminder defaults.
+reminders:
+  default_time: "08:30"          # HH:MM (24h) used when /setreminder has no time
+  timezone: America/Los_Angeles  # IANA timezone for all scheduling
+
+# Google Calendar reminders (requires GOOGLE_SERVICE_ACCOUNT_FILE in .env).
+calendar:
+  enabled: true
+  name: "Équipe PM"              # the calendar to watch, matched by its name
+  # A calendar shared with a service account never shows up in its calendar list, so
+  # name lookup fails. Set calendar_id to address it directly (recommended). Find it in
+  # Google Calendar -> Settings and sharing -> Integrate calendar -> Calendar ID.
+  # Verify with: python3 tools/list_calendars.py <calendar-id>
+  calendar_id: null              # e.g. "abcd1234@group.calendar.google.com"; null => use name
+  reminder_lead_minutes: 30      # ping this many minutes before each event
+  poll_interval_minutes: 15      # how often to refresh events from Google
+  lookahead_hours: 48            # how far ahead to sync events
