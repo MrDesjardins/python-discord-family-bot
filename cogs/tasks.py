@@ -10,7 +10,7 @@ from deps.ai.embeddings import embed_texts, to_blob
 from deps.config import get_config
 from deps.functions_date import now_in_tz, parse_time
 from deps.log import print_error_log, print_log
-from deps.message_data_access import get_messages_without_embedding, set_message_embedding
+from deps.message_data_access import archive_bot_message, get_messages_without_embedding, set_message_embedding
 from deps.mybot import MyBot
 from deps.reminder_data_access import (
     deactivate_reminder,
@@ -83,7 +83,9 @@ class TasksCog(commands.Cog):
         prefix = "🔁 Daily reminder" if recurring else "📅 Reminder"
         suffix = "\n_React on the original reminder message with any emoji to stop._" if recurring else ""
         try:
-            await channel.send(f"{prefix} for <@{reminder.author_id}>: {reminder.content}{suffix}")
+            posted = await channel.send(f"{prefix} for <@{reminder.author_id}>: {reminder.content}{suffix}")
+            # Archive the ping so the AI can answer "how many times was I reminded about X?".
+            archive_bot_message(posted, reminder.guild_id)
             print_log(f"_send_ping: sent reminder {reminder.id} (recurring={recurring})")
             return True
         except discord.DiscordException as exc:

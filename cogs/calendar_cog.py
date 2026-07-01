@@ -15,6 +15,7 @@ from deps.calendar_data_access import (
 )
 from deps.config import get_config
 from deps.functions_date import get_tz
+from deps.message_data_access import archive_bot_message
 from deps.google_calendar import fetch_upcoming_events, find_calendar_id_by_name, is_configured
 from deps.log import print_error_log, print_log
 from deps.models import CalendarEvent
@@ -104,7 +105,9 @@ class CalendarCog(commands.Cog):
             return
         for event in due:
             try:
-                await channel.send(self._format_reminder(event, config.reminders.timezone))
+                posted = await channel.send(self._format_reminder(event, config.reminders.timezone))
+                # Archive the reminder so the AI can answer "when did event X happen?".
+                archive_bot_message(posted, channel.guild.id)
                 mark_event_reminded(event.event_id)
                 print_log(f"calendar: reminded for event {event.event_id} ({event.summary})")
             except discord.DiscordException as exc:

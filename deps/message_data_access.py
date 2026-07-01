@@ -31,6 +31,30 @@ def store_message(
     database_manager.get_conn().commit()
 
 
+def archive_bot_message(message: object, guild_id: int) -> None:
+    """Archive a message the bot itself posted (calendar reminder / reminder ping).
+
+    Accepts anything with the discord.Message shape (``id``, ``channel``, ``author``,
+    ``content``, ``created_at``) so the data-access layer stays free of a discord import
+    and this stays unit-testable with a plain stand-in object. Routes through
+    ``store_message`` so it shares the same idempotency and embedding pipeline as live
+    archiving. Only the bot's *structured* posts are archived this way — AI mention
+    replies and other bots are intentionally left out to avoid an AI echo chamber.
+    """
+    channel = message.channel  # type: ignore[attr-defined]
+    author = message.author  # type: ignore[attr-defined]
+    store_message(
+        message_id=message.id,  # type: ignore[attr-defined]
+        guild_id=guild_id,
+        channel_id=channel.id,
+        channel_name=getattr(channel, "name", None),
+        author_id=author.id,
+        author_name=getattr(author, "display_name", None),
+        content=message.content or "",  # type: ignore[attr-defined]
+        created_at=message.created_at,  # type: ignore[attr-defined]
+    )
+
+
 def get_messages_without_embedding(limit: int = 200) -> List[Tuple[int, str]]:
     """Return (message_id, content) for messages that still need an embedding."""
     cur = database_manager.get_cursor()
