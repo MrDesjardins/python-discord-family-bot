@@ -97,6 +97,28 @@ def get_all_events() -> List[CalendarEvent]:
     return [CalendarEvent.from_db_row(row) for row in cur.fetchall()]
 
 
+def delete_stale_events(
+    synced_event_ids: List[str], window_start_utc: datetime.datetime, window_end_utc: datetime.datetime
+) -> int:
+    """Delete events starting in ``[window_start_utc, window_end_utc)`` absent from a fresh sync.
+
+    An event moved outside the sync window or deleted upstream stops appearing in
+    fetch results; without this prune its stale row would linger and show up in
+    reminders and the daily summary. Returns rows deleted.
+    """
+    cur = database_manager.get_cursor()
+    not_in = ""
+    if synced_event_ids:
+        placeholders = ",".join("?" for _ in synced_event_ids)
+        not_in = f" AND event_id NOT IN ({placeholders})"
+    cur.execute(
+        f"DELETE FROM calendar_event WHERE start_utc >= ? AND start_utc < ?{not_in}",
+        (window_start_utc, window_end_utc, *synced_event_ids),
+    )
+    database_manager.get_conn().commit()
+    return cur.rowcount
+
+
 def delete_past_events(before_utc: datetime.datetime) -> int:
     """Delete events that ended/started before ``before_utc``. Returns rows deleted."""
     cur = database_manager.get_cursor()

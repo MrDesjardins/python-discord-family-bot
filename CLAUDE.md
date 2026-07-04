@@ -100,6 +100,11 @@ are read from the project folder; passwordless via SSH keys + scoped NOPASSWD su
   invite), so name lookup can't find it. Set `calendar.calendar_id` in `config.yaml` and
   read via `events().list(calendarId=…)` directly. `tools/list_calendars.py <id>` tests
   this path.
+- **A mirror-style sync must prune, not just upsert.** The calendar poll once only
+  upserted fetched events, so an event moved beyond the lookahead window (or deleted)
+  kept its stale local row and showed up in the daily summary. After each fetch, delete
+  in-window rows absent from the result (`delete_stale_events`), using the same
+  `[now, now+lookahead)` bounds as the fetch (pass `now` into `fetch_upcoming_events`).
 - **Slash-command permission checks must use `app_commands.checks.*`**, not
   `commands.has_permissions`. The latter attaches to `__commands_checks__`, which the
   app-command tree ignores, so the check silently becomes a no-op (anyone can run the

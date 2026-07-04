@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 
 from deps.calendar_data_access import (
     delete_past_events,
+    delete_stale_events,
     get_events_needing_reminder,
     mark_event_reminded,
     upsert_event,
@@ -77,8 +78,12 @@ class CalendarCog(commands.Cog):
         if calendar_id is None:
             return
         config = get_config()
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        window_end = now_utc + datetime.timedelta(hours=config.calendar.lookahead_hours)
         try:
-            events = await asyncio.to_thread(fetch_upcoming_events, calendar_id, config.calendar.lookahead_hours)
+            events = await asyncio.to_thread(
+                fetch_upcoming_events, calendar_id, config.calendar.lookahead_hours, now=now_utc
+            )
         except Exception as exc:  # pylint: disable=broad-exception-caught
             print_error_log(f"calendar.poll_loop: fetch failed: {exc}")
             return
@@ -87,9 +92,13 @@ class CalendarCog(commands.Cog):
                 upsert_event(event)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 print_error_log(f"calendar.poll_loop: upsert failed for {event.event_id}: {exc}")
+        # Prune rows the sync no longer returned: an event moved out of the window or
+        # deleted upstream would otherwise linger and appear in the daily summary.
+        stale = delete_stale_events([e.event_id for e in events], now_utc, window_end)
+        if stale:
+            print_log(f"calendar.poll_loop: pruned {stale} stale event(s) moved/deleted upstream")
         # Housekeeping: drop events that started more than a day ago.
-        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
-        delete_past_events(cutoff)
+        delete_past_events(now_utc - datetime.timedelta(days=1))
 
     @tasks.loop(seconds=60)
     async def reminder_loop(self) -> None:

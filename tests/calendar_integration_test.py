@@ -3,6 +3,8 @@
 import datetime
 
 from deps.calendar_data_access import (
+    delete_stale_events,
+    get_events_in_range,
     get_events_needing_reminder,
     mark_event_reminded,
     upsert_event,
@@ -56,3 +58,38 @@ def test_upsert_preserves_reminded_until_time_changes(db):  # pylint: disable=un
     event.start_utc = now + datetime.timedelta(minutes=15)
     upsert_event(event)
     assert [e.event_id for e in get_events_needing_reminder(now, lead_minutes=30)] == ["e"]
+
+
+def test_resync_prunes_event_moved_out_of_window(db):  # pylint: disable=unused-argument
+    """An event moved beyond the lookahead window disappears from the mirror on re-sync.
+
+    Regression test: the daily summary once listed an event that had been moved to a
+    later day because the sync only upserted and never deleted the stale local row.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    window_end = now + datetime.timedelta(hours=48)
+    today_event = {
+        "id": "party",
+        "summary": "Party",
+        "start": {"dateTime": (now + datetime.timedelta(hours=3)).isoformat()},
+    }
+    other_event = {
+        "id": "dinner",
+        "summary": "Dinner",
+        "start": {"dateTime": (now + datetime.timedelta(hours=6)).isoformat()},
+    }
+
+    def sync(service_events):
+        """Mirror poll_loop: fetch with a pinned now, upsert, then prune the window."""
+        service = _FakeService(events={"items": service_events})
+        events = fetch_upcoming_events("cal1", lookahead_hours=48, service=service, now=now)
+        for event in events:
+            upsert_event(event)
+        delete_stale_events([e.event_id for e in events], now, window_end)
+
+    sync([today_event, other_event])
+    assert {e.event_id for e in get_events_in_range(now, window_end)} == {"party", "dinner"}
+
+    # 'party' is moved days ahead: Google stops returning it within the window.
+    sync([other_event])
+    assert {e.event_id for e in get_events_in_range(now, window_end)} == {"dinner"}

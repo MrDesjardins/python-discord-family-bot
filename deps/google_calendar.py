@@ -107,10 +107,16 @@ def normalize_event(item: dict, calendar_id: str) -> Optional[CalendarEvent]:
     )
 
 
-def fetch_upcoming_events(calendar_id: str, lookahead_hours: int, service=None) -> List[CalendarEvent]:
-    """Fetch single (expanded) events from now up to ``lookahead_hours`` ahead."""
+def fetch_upcoming_events(
+    calendar_id: str, lookahead_hours: int, service=None, now: Optional[datetime.datetime] = None
+) -> List[CalendarEvent]:
+    """Fetch single (expanded) events from ``now`` up to ``lookahead_hours`` ahead.
+
+    ``now`` lets the caller pin the window start so a follow-up prune of local rows
+    (see ``delete_stale_events``) uses exactly the same bounds as the fetch.
+    """
     service = service or _build_service()
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = now or datetime.datetime.now(datetime.timezone.utc)
     time_max = now + datetime.timedelta(hours=lookahead_hours)
     events: List[CalendarEvent] = []
     page_token = None

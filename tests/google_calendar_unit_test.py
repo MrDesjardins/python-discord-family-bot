@@ -63,21 +63,23 @@ class _FakeCalendarList:
 class _FakeEvents:
     def __init__(self, payload):
         self._payload = payload
+        self.last_kwargs = {}
 
-    def list(self, **_kwargs):
+    def list(self, **kwargs):
+        self.last_kwargs = kwargs
         return _FakeExec(self._payload)
 
 
 class _FakeService:
     def __init__(self, calendars=None, events=None):
         self._calendars = calendars or {"items": []}
-        self._events = events or {"items": []}
+        self.events_api = _FakeEvents(events or {"items": []})
 
     def calendarList(self):  # noqa: N802  (mirrors Google API method)
         return _FakeCalendarList(self._calendars)
 
     def events(self):
-        return _FakeEvents(self._events)
+        return self.events_api
 
 
 def test_find_calendar_id_by_name_case_insensitive():
@@ -99,3 +101,12 @@ def test_fetch_upcoming_events_uses_service():
     )
     events = fetch_upcoming_events("cal-B", lookahead_hours=48, service=service)
     assert [e.event_id for e in events] == ["e1", "e2"]
+
+
+def test_fetch_upcoming_events_pins_window_to_given_now():
+    """A caller-supplied ``now`` sets the query bounds, so a follow-up prune can reuse them."""
+    service = _FakeService()
+    now = datetime.datetime(2026, 7, 4, 12, 0, tzinfo=datetime.timezone.utc)
+    fetch_upcoming_events("cal-B", lookahead_hours=48, service=service, now=now)
+    assert service.events_api.last_kwargs["timeMin"] == now.isoformat()
+    assert service.events_api.last_kwargs["timeMax"] == (now + datetime.timedelta(hours=48)).isoformat()

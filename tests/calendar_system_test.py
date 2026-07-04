@@ -4,6 +4,7 @@ import datetime
 
 from deps.calendar_data_access import (
     delete_past_events,
+    delete_stale_events,
     get_all_events,
     get_events_in_range,
     get_events_needing_reminder,
@@ -78,3 +79,33 @@ def test_get_events_in_range_selects_only_the_window(system_db):  # pylint: disa
     window_start = base
     window_end = base + datetime.timedelta(hours=24)
     assert [e.event_id for e in get_events_in_range(window_start, window_end)] == ["inside"]
+
+
+def test_delete_stale_events_prunes_only_missing_rows_in_window(system_db):  # pylint: disable=unused-argument
+    """delete_stale_events removes in-window rows a sync no longer returned, nothing else."""
+    base = datetime.datetime(2031, 3, 2, 8, 0, tzinfo=datetime.timezone.utc)
+    for offset_hours, event_id in ((-3, "before-window"), (2, "kept"), (5, "moved-away"), (30, "after-window")):
+        upsert_event(
+            CalendarEvent(
+                event_id=event_id,
+                calendar_id="cal1",
+                summary=event_id,
+                description=None,
+                location=None,
+                start_utc=base + datetime.timedelta(hours=offset_hours),
+                end_utc=None,
+                html_link=None,
+            )
+        )
+
+    # The sync window is [base, base+24h) and only 'kept' came back from Google.
+    deleted = delete_stale_events(["kept"], base, base + datetime.timedelta(hours=24))
+    assert deleted == 1
+    remaining = {e.event_id for e in get_all_events()}
+    assert "moved-away" not in remaining
+    assert {"before-window", "kept", "after-window"} <= remaining
+
+    # An empty sync result wipes the whole window.
+    deleted = delete_stale_events([], base, base + datetime.timedelta(hours=24))
+    assert deleted == 1
+    assert "kept" not in {e.event_id for e in get_all_events()}
