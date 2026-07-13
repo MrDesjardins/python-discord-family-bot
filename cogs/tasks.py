@@ -95,7 +95,7 @@ class TasksCog(commands.Cog):
         # (e.g. "file_name") would otherwise break underscore-italic pairing.
         suffix = "\n*React on the original reminder message with any emoji to stop.*" if recurring else ""
         try:
-            posted = await channel.send(f"{prefix} for <@{reminder.author_id}>: {reminder.content}{suffix}")
+            posted = await channel.send(f"{prefix} for <@{reminder.ping_user_id}>: {reminder.content}{suffix}")
             # Archive the ping so the AI can answer "how many times was I reminded about X?".
             archive_bot_message(posted, reminder.guild_id)
             print_log(f"_send_ping: sent reminder {reminder.id} (recurring={recurring})")

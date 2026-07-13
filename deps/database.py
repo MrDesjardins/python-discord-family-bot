@@ -87,6 +87,7 @@ class DatabaseManager:
                 channel_id         INTEGER NOT NULL,
                 message_id         INTEGER,
                 author_id          INTEGER NOT NULL,
+                target_id          INTEGER,
                 content            TEXT NOT NULL,
                 created_at         datetime NOT NULL,
                 is_recurring       INTEGER NOT NULL,
@@ -98,6 +99,11 @@ class DatabaseManager:
             )
             """
         )
+        # Databases created before the optional target existed lack the column;
+        # NULL means "ping the author".
+        cur.execute("PRAGMA table_info(reminder)")
+        if "target_id" not in {row[1] for row in cur.fetchall()}:
+            cur.execute("ALTER TABLE reminder ADD COLUMN target_id INTEGER")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reminder_active ON reminder(is_active)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_reminder_message ON reminder(message_id)")
 

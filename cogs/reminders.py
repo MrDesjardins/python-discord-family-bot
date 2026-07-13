@@ -55,13 +55,15 @@ class RemindersCog(commands.Cog):
     @app_commands.describe(
         message="What to be reminded about.",
         when="Tap a suggestion, or type e.g. 'tomorrow', 'in 3 days', 'fri 6pm', '2026-07-15 18:00'. Empty = daily.",
+        person="Who to ping. Leave empty to be pinged yourself.",
     )
     @app_commands.autocomplete(when=when_autocomplete)
-    async def set_reminder(
+    async def set_reminder(  # pylint: disable=too-many-locals
         self,
         interaction: discord.Interaction,
         message: str,
         when: Optional[str] = None,
+        person: Optional[discord.Member] = None,
     ) -> None:
         """Create a recurring (default) or one-time reminder from a natural 'when'."""
         await interaction.response.defer(ephemeral=True)
@@ -92,20 +94,24 @@ class RemindersCog(commands.Cog):
             return
 
         author = interaction.user
+        target = person if person is not None else author
+        target_id = person.id if person is not None else None
+        for_target = f" for {target.display_name}" if person is not None else ""
 
         if parsed.recurring:
             remind_time = parsed.remind_time or config.reminders.default_time
-            reminder_id = create_recurring_reminder(guild.id, channel.id, author.id, message, remind_time)
+            reminder_id = create_recurring_reminder(guild.id, channel.id, author.id, message, remind_time, target_id)
             posted = await channel.send(
-                f"🔁 **Daily reminder** for {author.mention}: {message}\n"
+                f"🔁 **Daily reminder** for {target.mention}: {message}\n"
                 # Asterisk italics (not `_`): the timezone name contains an underscore
                 # (e.g. America/Los_Angeles) which breaks underscore-italic pairing.
-                f"*I'll ping you every day at {remind_time} ({timezone_name}). "
+                f"*I'll ping {'you' if person is None else target.display_name} every day "
+                f"at {remind_time} ({timezone_name}). "
                 f"React to this message with any emoji to stop.*"
             )
             set_reminder_message_id(reminder_id, posted.id)
             await interaction.followup.send(
-                f"Daily reminder created in {channel.mention} (id `{reminder_id}`).", ephemeral=True
+                f"Daily reminder created{for_target} in {channel.mention} (id `{reminder_id}`).", ephemeral=True
             )
             print_log(f"reminders: created recurring reminder {reminder_id} for guild {guild.id}")
         else:
@@ -119,13 +125,13 @@ class RemindersCog(commands.Cog):
                     ephemeral=True,
                 )
                 return
-            reminder_id = create_onetime_reminder(guild.id, channel.id, author.id, message, remind_at_utc)
+            reminder_id = create_onetime_reminder(guild.id, channel.id, author.id, message, remind_at_utc, target_id)
             posted = await channel.send(
-                f"📅 **Reminder set** for {author.mention} on **{local_when}** ({timezone_name}): {message}"
+                f"📅 **Reminder set** for {target.mention} on **{local_when}** ({timezone_name}): {message}"
             )
             set_reminder_message_id(reminder_id, posted.id)
             await interaction.followup.send(
-                f"One-time reminder created in {channel.mention} for {local_when} (id `{reminder_id}`).",
+                f"One-time reminder created{for_target} in {channel.mention} for {local_when} (id `{reminder_id}`).",
                 ephemeral=True,
             )
             print_log(f"reminders: created one-time reminder {reminder_id} for guild {guild.id}")
@@ -149,7 +155,7 @@ class RemindersCog(commands.Cog):
             else:
                 when = f"once at {rem.remind_at:%Y-%m-%d %H:%M} UTC" if rem.remind_at else "once"
             preview = rem.content if len(rem.content) <= 60 else rem.content[:57] + "..."
-            lines.append(f"`{rem.id}` • <@{rem.author_id}> • {when} • {preview}")
+            lines.append(f"`{rem.id}` • <@{rem.ping_user_id}> • {when} • {preview}")
         await interaction.followup.send("\n".join(lines), ephemeral=True)
 
     @app_commands.command(name=COMMAND_CANCEL_REMINDER, description="Cancel a reminder by its id.")

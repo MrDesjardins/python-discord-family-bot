@@ -29,6 +29,12 @@ class Reminder:
     is_active: bool
     acknowledged: bool
     last_reminded_date: Optional[str]  # "YYYY-MM-DD" in guild tz, dedupe for recurring
+    target_id: Optional[int] = None  # who to ping; None means the author
+
+    @property
+    def ping_user_id(self) -> int:
+        """The user to ping: the optional target, else the author."""
+        return self.target_id if self.target_id is not None else self.author_id
 
     @staticmethod
     def from_db_row(row: tuple) -> "Reminder":
@@ -51,6 +57,7 @@ class Reminder:
             is_active=bool(row[10]),
             acknowledged=bool(row[11]),
             last_reminded_date=row[12],
+            target_id=row[13],
         )
 
 

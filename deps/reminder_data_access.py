@@ -8,7 +8,7 @@ from deps.models import Reminder
 
 SELECT_REMINDER = (
     "SELECT id, guild_id, channel_id, message_id, author_id, content, created_at, "
-    "is_recurring, remind_time, remind_at, is_active, acknowledged, last_reminded_date FROM reminder"
+    "is_recurring, remind_time, remind_at, is_active, acknowledged, last_reminded_date, target_id FROM reminder"
 )
 
 
@@ -18,16 +18,28 @@ def create_recurring_reminder(
     author_id: int,
     content: str,
     remind_time: str,
+    target_id: Optional[int] = None,
 ) -> int:
-    """Create a daily reminder that repeats until the message is acknowledged."""
+    """Create a daily reminder that repeats until the message is acknowledged.
+
+    ``target_id`` is who to ping; None means the author.
+    """
     cur = database_manager.get_cursor()
     cur.execute(
         """
         INSERT INTO reminder
-            (guild_id, channel_id, author_id, content, created_at, is_recurring, remind_time, is_active)
-        VALUES (?, ?, ?, ?, ?, 1, ?, 1)
+            (guild_id, channel_id, author_id, target_id, content, created_at, is_recurring, remind_time, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1)
         """,
-        (guild_id, channel_id, author_id, content, datetime.datetime.now(datetime.timezone.utc), remind_time),
+        (
+            guild_id,
+            channel_id,
+            author_id,
+            target_id,
+            content,
+            datetime.datetime.now(datetime.timezone.utc),
+            remind_time,
+        ),
     )
     database_manager.get_conn().commit()
     return int(cur.lastrowid or 0)
@@ -39,16 +51,28 @@ def create_onetime_reminder(
     author_id: int,
     content: str,
     remind_at_utc: datetime.datetime,
+    target_id: Optional[int] = None,
 ) -> int:
-    """Create a one-time reminder that fires once at ``remind_at_utc``."""
+    """Create a one-time reminder that fires once at ``remind_at_utc``.
+
+    ``target_id`` is who to ping; None means the author.
+    """
     cur = database_manager.get_cursor()
     cur.execute(
         """
         INSERT INTO reminder
-            (guild_id, channel_id, author_id, content, created_at, is_recurring, remind_at, is_active)
-        VALUES (?, ?, ?, ?, ?, 0, ?, 1)
+            (guild_id, channel_id, author_id, target_id, content, created_at, is_recurring, remind_at, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?, 1)
         """,
-        (guild_id, channel_id, author_id, content, datetime.datetime.now(datetime.timezone.utc), remind_at_utc),
+        (
+            guild_id,
+            channel_id,
+            author_id,
+            target_id,
+            content,
+            datetime.datetime.now(datetime.timezone.utc),
+            remind_at_utc,
+        ),
     )
     database_manager.get_conn().commit()
     return int(cur.lastrowid or 0)

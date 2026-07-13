@@ -130,6 +130,13 @@ def test_format_includes_events_and_reminders():
     assert "15:00 — Call mom (<@200>)" in text
 
 
+def test_format_mentions_target_when_reminder_is_for_someone_else():
+    reminders = [_reminder(id=1, is_recurring=True, remind_time="08:30", content="Trash", author_id=100, target_id=300)]
+    text = format_summary(_local(2026, 6, 30, 8, 0), [], reminders, TZ)
+    assert "08:30 daily — Trash (<@300>)" in text
+    assert "<@100>" not in text
+
+
 def test_format_empty_day():
     text = format_summary(_local(2026, 6, 30, 8, 0), [], [], TZ)
     assert "**📅 Calendar events** — none" in text

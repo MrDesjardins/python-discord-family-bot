@@ -105,7 +105,7 @@ def format_summary(
             else:
                 local = reminder.remind_at.astimezone(tz) if reminder.remind_at else None
                 when = local.strftime("%H:%M") if local else "today"
-            lines.append(f"• {when} — {reminder.content} (<@{reminder.author_id}>)")
+            lines.append(f"• {when} — {reminder.content} (<@{reminder.ping_user_id}>)")
     else:
         lines.append("**🔔 Reminders** — none")
 

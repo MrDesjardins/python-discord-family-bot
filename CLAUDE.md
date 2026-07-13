@@ -7,7 +7,8 @@ learned** so we don't repeat it.
 ## Project Overview
 
 A private family Discord bot with three features:
-- **Reminders**: `/setreminder` posts to a configured channel and pings the author daily
+- **Reminders**: `/setreminder` posts to a configured channel and pings the author (or an
+  optional `person` chosen in the command) daily
   (until acknowledged with an emoji) or once at a chosen time. The `when` field takes a
   natural expression ("tomorrow", "in 3 days", "fri 6pm", "2026-07-15 18:00") with
   tap-friendly autocomplete; empty `when` means recurring daily. Parsing lives in the pure

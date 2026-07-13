@@ -31,6 +31,24 @@ def test_onetime_reminder_due_detection(db):  # pylint: disable=unused-argument
     assert after >= reminder.remind_at
 
 
+def test_reminder_pings_author_when_no_target(db):  # pylint: disable=unused-argument
+    """Without a target, the ping falls back to the author."""
+    create_recurring_reminder(1, 10, 100, "feed cat", "08:30")
+    reminder = get_active_reminders()[0]
+    assert reminder.target_id is None
+    assert reminder.ping_user_id == 100
+
+
+def test_reminder_pings_target_when_set(db):  # pylint: disable=unused-argument
+    """A reminder created for someone else stores and pings the target, not the author."""
+    remind_at = local_datetime_to_utc("2026-07-15", "08:30", "America/Los_Angeles")
+    create_onetime_reminder(1, 10, 100, "dentist", remind_at, target_id=200)
+    reminder = get_active_reminders()[0]
+    assert reminder.author_id == 100
+    assert reminder.target_id == 200
+    assert reminder.ping_user_id == 200
+
+
 def test_recurring_reminder_acknowledge_flow(db):  # pylint: disable=unused-argument
     """Creating, attaching a message, then acknowledging deactivates the reminder."""
     rid = create_recurring_reminder(1, 10, 100, "feed cat", "08:30")
