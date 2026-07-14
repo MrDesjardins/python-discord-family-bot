@@ -34,7 +34,7 @@ def test_message_archive_and_embedding_crud(system_db):  # pylint: disable=unuse
 
     assert get_messages_without_embedding() == []
 
-    rows = get_embedded_messages_for_guild(1)
+    rows = get_embedded_messages_for_guild(1, {10})
     assert len(rows) == 2
     # Embedding round-trips through the database blob column.
     _mid, _author, _content, _created, blob = rows[0]
@@ -58,5 +58,36 @@ def test_archive_bot_message_stores_calendar_and_reminder_posts(system_db):  # p
     assert 900 in {mid for mid, _ in pending}
     set_message_embedding(900, to_blob(np.array([0.4, 0.5, 0.6], dtype=np.float32)))
 
-    rows = {mid: (author, content) for mid, author, content, _created, _blob in get_embedded_messages_for_guild(1)}
+    rows = {
+        mid: (author, content) for mid, author, content, _created, _blob in get_embedded_messages_for_guild(1, {10})
+    }
     assert rows[900] == ("FamilyBot", "📅 In 30 min: Dentist")
+
+
+def test_get_embedded_messages_filters_by_channel(system_db):  # pylint: disable=unused-argument
+    """Retrieval only returns messages from the given channels; empty set returns nothing."""
+    now = datetime.datetime(2026, 6, 1, 12, 0, tzinfo=datetime.timezone.utc)
+    store_message(1, 1, 10, "general", 100, "mom", "open to everyone", now)
+    store_message(2, 1, 20, "parents-only", 101, "dad", "secret gift plans", now)
+    for message_id, _content in get_messages_without_embedding():
+        set_message_embedding(message_id, to_blob(np.array([0.1, 0.2, 0.3], dtype=np.float32)))
+
+    assert {mid for mid, *_ in get_embedded_messages_for_guild(1, {10})} == {1}
+    assert {mid for mid, *_ in get_embedded_messages_for_guild(1, {10, 20})} == {1, 2}
+    assert get_embedded_messages_for_guild(1, set()) == []
+
+
+def test_get_embedded_messages_matches_parent_channel(system_db):  # pylint: disable=unused-argument
+    """A public-thread message (parent_channel_id set) is retrievable via the parent
+    channel id even when the thread id itself is not in the visible set; a private
+    thread message (parent NULL) is only reachable via its own thread id."""
+    now = datetime.datetime(2026, 6, 1, 12, 0, tzinfo=datetime.timezone.utc)
+    store_message(1, 1, 30, "trip-plans", 100, "mom", "camping this summer", now, parent_channel_id=10)
+    store_message(2, 1, 40, "gift-plans", 101, "dad", "secret gift plans", now, parent_channel_id=None)
+    for message_id, _content in get_messages_without_embedding():
+        set_message_embedding(message_id, to_blob(np.array([0.1, 0.2, 0.3], dtype=np.float32)))
+
+    # Parent channel visible, neither thread id in the set: public thread matches via parent.
+    assert {mid for mid, *_ in get_embedded_messages_for_guild(1, {10})} == {1}
+    # Private thread reachable only by members whose set contains the thread id itself.
+    assert {mid for mid, *_ in get_embedded_messages_for_guild(1, {10, 40})} == {1, 2}

@@ -110,18 +110,26 @@ class DatabaseManager:
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS message (
-                message_id   INTEGER PRIMARY KEY,
-                guild_id     INTEGER,
-                channel_id   INTEGER NOT NULL,
-                channel_name TEXT,
-                author_id    INTEGER NOT NULL,
-                author_name  TEXT,
-                content      TEXT NOT NULL,
-                created_at   datetime NOT NULL,
-                embedding    BLOB
+                message_id        INTEGER PRIMARY KEY,
+                guild_id          INTEGER,
+                channel_id        INTEGER NOT NULL,
+                channel_name      TEXT,
+                author_id         INTEGER NOT NULL,
+                author_name       TEXT,
+                content           TEXT NOT NULL,
+                created_at        datetime NOT NULL,
+                embedding         BLOB,
+                parent_channel_id INTEGER
             )
             """
         )
+        # Databases created before thread support lack the column; for a message posted
+        # in a PUBLIC thread it holds the parent channel id (visibility inherits from the
+        # parent, even after the thread auto-archives). NULL for regular channels and
+        # private threads (private threads never inherit parent visibility).
+        cur.execute("PRAGMA table_info(message)")
+        if "parent_channel_id" not in {row[1] for row in cur.fetchall()}:
+            cur.execute("ALTER TABLE message ADD COLUMN parent_channel_id INTEGER")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_message_guild ON message(guild_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_message_created ON message(created_at)")
         cur.execute(

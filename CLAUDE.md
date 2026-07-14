@@ -17,7 +17,9 @@ A private family Discord bot with three features:
 - **Daily summary**: posts a morning digest of the day's calendar events and reminders to the
   calendar channel at a configurable time (`daily_summary` in `config.yaml`).
 - **AI Q&A**: `@`-mention answers via OpenAI, grounded on archived family chat retrieved
-  with local sentence-transformers embeddings (similarity × recency).
+  with local sentence-transformers embeddings (similarity × recency). Retrieval is
+  permission-aware: only messages from channels the asker can currently read
+  (`deps/channel_visibility.py`, live role/overwrite check — no hardcoded role names).
 
 ## Commands
 
@@ -110,4 +112,13 @@ are read from the project folder; passwordless via SSH keys + scoped NOPASSWD su
   `commands.has_permissions`. The latter attaches to `__commands_checks__`, which the
   app-command tree ignores, so the check silently becomes a no-op (anyone can run the
   command). Put `@app_commands.checks.has_permissions(...)` *below* `@app_commands.command`.
+- **`Thread.permissions_for` ignores private-thread membership.** discord.py resolves
+  thread permissions purely from the parent channel, so a permission check alone treats a
+  private thread as visible to anyone who can see the parent. Any thread visibility logic
+  must additionally check `thread.is_private()` + `thread.members` / `manage_threads`
+  (see `deps/channel_visibility.py`).
+- **`guild.threads` only contains cached *active* threads** — discord.py evicts a thread
+  on auto-archive, so anything keyed on live thread ids silently loses archived threads.
+  That's why `message.parent_channel_id` is stored at archive time (public threads only):
+  retrieval matches the parent channel and survives the thread leaving the cache.
 ```

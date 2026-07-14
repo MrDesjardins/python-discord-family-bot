@@ -21,6 +21,7 @@ deps/                         business logic + data access (no Discord types lea
   calendar_data_access.py     calendar_event table CRUD
   google_calendar.py          service-account auth, find calendar by name, fetch events
   functions_date.py           timezone-aware scheduling helpers (pytz)
+  channel_visibility.py       channels/threads a member can read (AI permission filter)
   ai/embeddings.py            sentence-transformers + recency-weighted ranking
   ai/ai_functions.py          OpenAI chat grounded on retrieved context
   values.py                   command-name constants + small fallbacks
@@ -50,6 +51,9 @@ file and run `/reloadconfig` (or restart) to apply.
 
 - `reminder` — user reminders (recurring-daily or one-time).
 - `message` — archived guild messages + their embedding blob (float32 bytes).
+  `parent_channel_id` is set for public-thread messages so visibility can match the
+  parent channel even after the thread auto-archives; NULL for regular channels and
+  private threads.
 - `calendar_event` — mirror of upcoming Google Calendar events + `reminded` flag.
 
 SQLite runs in WAL mode. The single `database_manager` instance owns the connection;
@@ -74,5 +78,11 @@ day at the configured time) → `get_events_in_range` (today) + `reminders_for_d
 posted date is persisted via `bot_state_data_access` so a restart doesn't re-post it.
 
 **AI**: every guild message → `events.on_message` → `message_data_access.store_message`
-→ `tasks.embedding_loop` (30s) embeds new rows → `@mention` → `ai_functions.answer_question`
-→ embed question, `embeddings.rank_messages` (similarity × recency), top-k → OpenAI.
+→ `tasks.embedding_loop` (30s) embeds new rows → `@mention` → `channel_visibility.visible_channel_ids`
+(channels the asker can read, from live Discord role/overwrite permissions; private
+threads additionally require thread membership or `manage_threads`) →
+`ai_functions.answer_question` → retrieval restricted to those channels (a message also
+matches via its stored `parent_channel_id`, keeping public-thread history visible after
+the thread auto-archives) → embed question, `embeddings.rank_messages`
+(similarity × recency), top-k → OpenAI. A member who can see no channels gets no
+archived context (fail-closed).

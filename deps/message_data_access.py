@@ -1,8 +1,9 @@
 """Data access for archived Discord messages used as AI context."""
 
 import datetime
-from typing import List, Optional, Tuple
+from typing import Collection, List, Optional, Tuple
 
+from deps.channel_visibility import archival_parent_channel_id
 from deps.database import database_manager
 
 
@@ -15,18 +16,35 @@ def store_message(
     author_name: Optional[str],
     content: str,
     created_at: datetime.datetime,
+    parent_channel_id: Optional[int] = None,
 ) -> None:
-    """Insert a message (idempotent on message_id). Embedding is filled in later."""
+    """Insert a message (idempotent on message_id). Embedding is filled in later.
+
+    ``parent_channel_id`` is set for messages posted in a PUBLIC thread (see
+    ``deps.channel_visibility.archival_parent_channel_id``) so retrieval can grant
+    visibility via the parent channel even after the thread auto-archives.
+    """
     if not content.strip():
         return
     cur = database_manager.get_cursor()
     cur.execute(
         """
         INSERT OR IGNORE INTO message
-            (message_id, guild_id, channel_id, channel_name, author_id, author_name, content, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (message_id, guild_id, channel_id, channel_name, author_id, author_name,
+             content, created_at, parent_channel_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (message_id, guild_id, channel_id, channel_name, author_id, author_name, content, created_at),
+        (
+            message_id,
+            guild_id,
+            channel_id,
+            channel_name,
+            author_id,
+            author_name,
+            content,
+            created_at,
+            parent_channel_id,
+        ),
     )
     database_manager.get_conn().commit()
 
@@ -52,6 +70,7 @@ def archive_bot_message(message: object, guild_id: int) -> None:
         author_name=getattr(author, "display_name", None),
         content=message.content or "",  # type: ignore[attr-defined]
         created_at=message.created_at,  # type: ignore[attr-defined]
+        parent_channel_id=archival_parent_channel_id(channel),
     )
 
 
@@ -74,16 +93,30 @@ def set_message_embedding(message_id: int, embedding_blob: bytes) -> None:
 
 def get_embedded_messages_for_guild(
     guild_id: int,
+    channel_ids: Collection[int],
 ) -> List[Tuple[int, str, str, datetime.datetime, bytes]]:
-    """Return (message_id, author_name, content, created_at, embedding) for a guild."""
+    """Return (message_id, author_name, content, created_at, embedding) for a guild.
+
+    Only messages from ``channel_ids`` are returned — this is the permission filter
+    for AI context (callers pass the asking member's visible channels, see
+    ``deps/channel_visibility.py``). A message matches on its own channel id or on
+    its ``parent_channel_id`` (set for public-thread messages, so they stay visible
+    via the parent channel even after the thread auto-archives). An empty collection
+    returns no rows (fail-closed).
+    """
+    if not channel_ids:
+        return []
+    ids = tuple(channel_ids)
     cur = database_manager.get_cursor()
+    placeholders = ",".join("?" for _ in ids)
     cur.execute(
-        """
+        f"""
         SELECT message_id, author_name, content, created_at, embedding
         FROM message
         WHERE guild_id = ? AND embedding IS NOT NULL
+          AND (channel_id IN ({placeholders}) OR parent_channel_id IN ({placeholders}))
         """,
-        (guild_id,),
+        (guild_id, *ids, *ids),
     )
     results: List[Tuple[int, str, str, datetime.datetime, bytes]] = []
     for row in cur.fetchall():

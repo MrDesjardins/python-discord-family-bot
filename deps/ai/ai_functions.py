@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import os
-from typing import List, Tuple
+from typing import List, Set, Tuple
 
 from openai import OpenAI
 
@@ -36,9 +36,13 @@ def _get_client() -> OpenAI:
     return _client
 
 
-def _build_context(guild_id: int, question: str) -> Tuple[str, int]:
-    """Retrieve the top relevant messages and format them as a context block."""
-    rows = get_embedded_messages_for_guild(guild_id)
+def _build_context(guild_id: int, question: str, visible_channel_ids: Set[int]) -> Tuple[str, int]:
+    """Retrieve the top relevant messages and format them as a context block.
+
+    Only messages from ``visible_channel_ids`` (the asking member's readable
+    channels) are considered, so answers never leak restricted-channel content.
+    """
+    rows = get_embedded_messages_for_guild(guild_id, visible_channel_ids)
     if not rows:
         return "", 0
     ai_cfg = get_config().ai
@@ -59,10 +63,13 @@ def _build_context(guild_id: int, question: str) -> Tuple[str, int]:
     return "\n".join(lines), len(ranked)
 
 
-def _answer_sync(guild_id: int, question: str) -> str:
+def _answer_sync(guild_id: int, question: str, visible_channel_ids: Set[int]) -> str:
     """Blocking call: build context and ask OpenAI. Run via asyncio.to_thread."""
-    context, used = _build_context(guild_id, question)
-    print_log(f"ai: answering with {used} context messages for guild {guild_id}")
+    context, used = _build_context(guild_id, question, visible_channel_ids)
+    print_log(
+        f"ai: answering with {used} context messages for guild {guild_id} "
+        f"({len(visible_channel_ids)} visible channels)"
+    )
 
     user_content = question
     if context:
@@ -82,10 +89,14 @@ def _answer_sync(guild_id: int, question: str) -> str:
     return answer.strip()
 
 
-async def answer_question(guild_id: int, question: str) -> str:
-    """Answer ``question`` using family chat context. Safe to await from a cog."""
+async def answer_question(guild_id: int, question: str, visible_channel_ids: Set[int]) -> str:
+    """Answer ``question`` using family chat context. Safe to await from a cog.
+
+    ``visible_channel_ids`` restricts retrieval to channels the asker can read
+    (compute with ``deps.channel_visibility.visible_channel_ids``).
+    """
     try:
-        return await asyncio.to_thread(_answer_sync, guild_id, question)
+        return await asyncio.to_thread(_answer_sync, guild_id, question, visible_channel_ids)
     except Exception as exc:  # pylint: disable=broad-exception-caught
         print_error_log(f"answer_question: {exc}")
         return "Sorry, I couldn't come up with an answer right now. Please try again later."

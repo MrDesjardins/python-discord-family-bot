@@ -4,8 +4,9 @@ import discord
 from discord.ext import commands
 
 from deps.ai.ai_functions import answer_question
+from deps.channel_visibility import archival_parent_channel_id, visible_channel_ids
 from deps.config import get_config
-from deps.log import print_error_log, print_log
+from deps.log import print_error_log, print_log, print_warning_log
 from deps.message_data_access import store_message
 from deps.mybot import MyBot
 
@@ -44,6 +45,7 @@ class EventsCog(commands.Cog):
                 author_name=message.author.display_name,
                 content=message.content or "",
                 created_at=message.created_at,
+                parent_channel_id=archival_parent_channel_id(message.channel),
             )
         except Exception as exc:  # pylint: disable=broad-exception-caught
             print_error_log(f"events.on_message: failed to archive message: {exc}")
@@ -69,8 +71,26 @@ class EventsCog(commands.Cog):
             await message.reply("Hi! Ask me a question and I'll use our family chat history to help. 🙂")
             return
 
+        # Resolve the asker to a Member — on a member-cache miss the author is a bare
+        # User without roles, which would silently produce an empty visible set.
+        member: discord.Member | None
+        if isinstance(message.author, discord.Member):
+            member = message.author
+        else:
+            member = message.guild.get_member(message.author.id)
+            if member is None:
+                try:
+                    member = await message.guild.fetch_member(message.author.id)
+                except discord.DiscordException as exc:
+                    print_warning_log(
+                        f"events._handle_ai_mention: cannot resolve member {message.author.id}; "
+                        f"answering without archive context: {exc}"
+                    )
+
+        # Only ground the answer on channels the asker can read (role-aware).
+        visible = visible_channel_ids(message.guild, member) if member is not None else set()
         async with message.channel.typing():
-            answer = await answer_question(message.guild.id, question)
+            answer = await answer_question(message.guild.id, question, visible)
 
         # Discord messages cap at 2000 chars.
         await message.reply(answer[:1990] if len(answer) > 1990 else answer)
