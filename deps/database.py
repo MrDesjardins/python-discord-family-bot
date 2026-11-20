@@ -131,6 +131,10 @@ class DatabaseManager:
         if "parent_channel_id" not in {row[1] for row in cur.fetchall()}:
             cur.execute("ALTER TABLE message ADD COLUMN parent_channel_id INTEGER")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_message_guild ON message(guild_id)")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_message_guild_channel_parent "
+            "ON message(guild_id, channel_id, parent_channel_id)"
+        )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_message_created ON message(created_at)")
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_message_embedding_null ON message(embedding) WHERE embedding IS NULL"

@@ -17,6 +17,7 @@ channel only — it never checks private-thread membership, so this module must)
   (fail-closed).
 """
 
+import re
 from typing import Any, Optional, Set
 
 from deps.log import print_warning_log
@@ -54,6 +55,25 @@ def visible_channel_ids(guild: Any, member: Any) -> Set[int]:
         except Exception as exc:  # pylint: disable=broad-exception-caught
             print_warning_log(f"visible_channel_ids: skipping thread {getattr(thread, 'id', '?')}: {exc}")
     return ids
+
+
+def history_channel_id(guild: Any, question: str, visible_ids: Set[int], fallback_id: int) -> int:
+    """Use a readable channel named in the question, otherwise use the current channel.
+
+    This lets someone ask in one channel about an explicitly named channel's history,
+    while keeping target resolution constrained to channels already deemed readable.
+    """
+    candidates = list(guild.channels) + list(guild.threads)
+    candidates.extend(getattr(guild, "_threads", {}).values())
+    matching = []
+    for channel in candidates:
+        channel_id = getattr(channel, "id", None)
+        name = getattr(channel, "name", "")
+        if channel_id not in visible_ids or len(name) < 3:
+            continue
+        if re.search(rf"(?<![\w-]){re.escape(name.casefold())}(?![\w-])", question.casefold()):
+            matching.append((len(name), channel_id))
+    return max(matching)[1] if matching else fallback_id
 
 
 def archival_parent_channel_id(channel: Any) -> Optional[int]:

@@ -21,6 +21,7 @@ import yaml
 from deps.functions_date import parse_time
 
 DEFAULT_CONFIG_PATH = os.getenv("CONFIG_FILE", "config.yaml")
+LEGACY_DEFAULT_AI_MODELS = {"gpt-4o-mini"}
 
 
 @dataclasses.dataclass
@@ -36,7 +37,7 @@ class ChannelsConfig:
 class AIConfig:
     """Tuning for the AI Q&A feature."""
 
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-6.2-sol"
     embedding_model: str = "all-MiniLM-L6-v2"
     max_context_messages: int = 50
     recency_halflife_days: float = 14.0
@@ -111,6 +112,10 @@ def parse_config(data: Dict[str, Any]) -> Config:
         recency_halflife_days=float(ai_raw.get("recency_halflife_days", AIConfig.recency_halflife_days)),
         similarity_weight=float(ai_raw.get("similarity_weight", AIConfig.similarity_weight)),
     )
+    # Older deployment config files are user-local and gitignored. Upgrade the former
+    # bundled default on load so a code update actually switches existing installs.
+    if ai.model in LEGACY_DEFAULT_AI_MODELS:
+        ai.model = AIConfig.model
     reminders = RemindersConfig(
         default_time=reminders_raw.get("default_time", RemindersConfig.default_time),
         timezone=reminders_raw.get("timezone", RemindersConfig.timezone),

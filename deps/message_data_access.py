@@ -1,7 +1,7 @@
 """Data access for archived Discord messages used as AI context."""
 
 import datetime
-from typing import Collection, List, Optional, Tuple
+from typing import Collection, List, Optional, Sequence, Tuple
 
 from deps.channel_visibility import archival_parent_channel_id
 from deps.database import database_manager
@@ -94,6 +94,8 @@ def set_message_embedding(message_id: int, embedding_blob: bytes) -> None:
 def get_embedded_messages_for_guild(
     guild_id: int,
     channel_ids: Collection[int],
+    target_channel_id: Optional[int] = None,
+    exclude_message_id: Optional[int] = None,
 ) -> List[Tuple[int, str, str, datetime.datetime, bytes]]:
     """Return (message_id, author_name, content, created_at, embedding) for a guild.
 
@@ -107,6 +109,15 @@ def get_embedded_messages_for_guild(
     if not channel_ids:
         return []
     ids = tuple(channel_ids)
+    target_clause = ""
+    target_params: Tuple[int, ...] = ()
+    if target_channel_id is not None:
+        if target_channel_id not in ids:
+            return []
+        target_clause = "AND (channel_id = ? OR parent_channel_id = ?)"
+        target_params = (target_channel_id, target_channel_id)
+    exclude_clause = "AND message_id != ?" if exclude_message_id is not None else ""
+    exclude_params = (exclude_message_id,) if exclude_message_id is not None else ()
     cur = database_manager.get_cursor()
     placeholders = ",".join("?" for _ in ids)
     cur.execute(
@@ -115,11 +126,100 @@ def get_embedded_messages_for_guild(
         FROM message
         WHERE guild_id = ? AND embedding IS NOT NULL
           AND (channel_id IN ({placeholders}) OR parent_channel_id IN ({placeholders}))
+          {target_clause}
+          {exclude_clause}
         """,
-        (guild_id, *ids, *ids),
+        (guild_id, *ids, *ids, *target_params, *exclude_params),
     )
     results: List[Tuple[int, str, str, datetime.datetime, bytes]] = []
     for row in cur.fetchall():
         created = row[3] if isinstance(row[3], datetime.datetime) else datetime.datetime.fromisoformat(row[3])
         results.append((row[0], row[1] or "unknown", row[2], created, row[4]))
     return results
+
+
+def get_relevant_messages_for_guild(
+    guild_id: int,
+    channel_ids: Collection[int],
+    search_terms: Sequence[str],
+    target_channel_id: Optional[int] = None,
+    limit: int = 100,
+    exclude_message_id: Optional[int] = None,
+) -> List[Tuple[int, str, str, datetime.datetime, int, Optional[str]]]:
+    """Search archived message text in readable channels, optionally within one channel.
+
+    Unlike embedding retrieval, this includes messages that have not been embedded yet
+    and can find exact names, URLs, and product mentions from older conversations. The
+    visible-channel filter is still mandatory; public-thread messages match through
+    their visible parent, while private threads match only through their own channel id.
+    Returns (message_id, author_name, content, created_at, channel_id, channel_name).
+    """
+    if not channel_ids or (not search_terms and target_channel_id is None) or limit <= 0:
+        return []
+
+    ids = tuple(channel_ids)
+    if target_channel_id is not None and target_channel_id not in ids:
+        return []
+    patterns = tuple(f"%{term.lower()}%" for term in search_terms)
+    query, params = _build_message_search_query(
+        guild_id,
+        ids,
+        patterns,
+        target_channel_id,
+        limit,
+        exclude_message_id,
+    )
+
+    cur = database_manager.get_cursor()
+    cur.execute(query, params)
+    results: List[Tuple[int, str, str, datetime.datetime, int, Optional[str]]] = []
+    for row in cur.fetchall():
+        created = row[3] if isinstance(row[3], datetime.datetime) else datetime.datetime.fromisoformat(row[3])
+        results.append((row[0], row[1] or "unknown", row[2], created, row[4], row[5]))
+    return results
+
+
+def _build_message_search_query(
+    guild_id: int,
+    channel_ids: Tuple[int, ...],
+    patterns: Tuple[str, ...],
+    target_channel_id: Optional[int],
+    limit: int,
+    exclude_message_id: Optional[int],
+) -> Tuple[str, Tuple[object, ...]]:
+    """Build a parameterized full-text LIKE query constrained to visible channels."""
+    # pylint: disable=too-many-locals
+    placeholders = ",".join("?" for _ in channel_ids)
+    searchable_text = "LOWER(COALESCE(content, ''))"
+    term_matches = " OR ".join(f"{searchable_text} LIKE ?" for _ in patterns) or "1 = 1"
+    term_score = " + ".join(f"CASE WHEN {searchable_text} LIKE ? THEN 1 ELSE 0 END" for _ in patterns) or "0"
+    order_by = f"({term_score}) DESC, created_at DESC" if patterns else "created_at DESC"
+    target_clause = ""
+    target_params: Tuple[int, ...] = ()
+    if target_channel_id is not None:
+        target_clause = "AND (channel_id = ? OR parent_channel_id = ?)"
+        target_params = (target_channel_id, target_channel_id)
+    exclude_clause = "AND message_id != ?" if exclude_message_id is not None else ""
+    exclude_params = (exclude_message_id,) if exclude_message_id is not None else ()
+    query = f"""
+        SELECT message_id, author_name, content, created_at, channel_id, channel_name
+        FROM message
+        WHERE guild_id = ?
+          AND (channel_id IN ({placeholders}) OR parent_channel_id IN ({placeholders}))
+          {target_clause}
+          {exclude_clause}
+          AND ({term_matches})
+        ORDER BY {order_by}
+        LIMIT ?
+        """
+    params: Tuple[object, ...] = (
+        guild_id,
+        *channel_ids,
+        *channel_ids,
+        *target_params,
+        *exclude_params,
+        *patterns,
+        *patterns,
+        limit,
+    )
+    return query, params

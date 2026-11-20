@@ -2,7 +2,7 @@
 
 import types
 
-from deps.channel_visibility import archival_parent_channel_id, visible_channel_ids
+from deps.channel_visibility import archival_parent_channel_id, history_channel_id, visible_channel_ids
 from tests.discord_fakes import make_channel, make_guild, make_member, make_thread
 
 MEMBER = make_member()
@@ -66,6 +66,23 @@ def test_thread_missing_private_shape_is_skipped() -> None:
 
 def test_empty_guild_gives_empty_set() -> None:
     assert visible_channel_ids(make_guild(), MEMBER) == set()
+
+
+def test_history_channel_id_resolves_visible_channel_name() -> None:
+    """Questions that name another readable channel search its history."""
+    guild = make_guild(channels=[make_channel(10), make_channel(20)])
+    guild.channels[0].name = "general"
+    guild.channels[1].name = "retirement-house"
+
+    assert history_channel_id(guild, "search retirement-house for Zillow", {10, 20}, 10) == 20
+
+
+def test_history_channel_id_does_not_resolve_hidden_channel() -> None:
+    """Named-channel history lookups cannot cross the visibility filter."""
+    guild = make_guild(channels=[make_channel(20, view=False)])
+    guild.channels[0].name = "retirement-house"
+
+    assert history_channel_id(guild, "search retirement-house", set(), 10) == 10
 
 
 def test_archival_parent_for_public_thread() -> None:

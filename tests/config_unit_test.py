@@ -16,7 +16,7 @@ def test_parse_minimal_applies_defaults():
     assert cfg.channels.calendar == 222
     assert cfg.channels.ai is None
     # Defaults
-    assert cfg.ai.model == "gpt-4o-mini"
+    assert cfg.ai.model == "gpt-6.2-sol"
     assert cfg.ai.max_context_messages == 50
     assert cfg.reminders.default_time == "08:30"
     assert cfg.reminders.timezone == "America/Los_Angeles"
@@ -44,6 +44,22 @@ def test_parse_overrides():
     assert cfg.calendar.reminder_lead_minutes == 15
     assert cfg.daily_summary.enabled is True
     assert cfg.daily_summary.time == "07:15"
+
+
+def test_legacy_default_model_is_upgraded():
+    """Existing private configs using the former default follow the current default."""
+    data = _minimal()
+    data["ai"] = {"model": "gpt-4o-mini"}
+
+    assert parse_config(data).ai.model == "gpt-6.2-sol"
+
+
+def test_explicit_model_override_is_preserved():
+    """Non-default models set by the operator are not overwritten."""
+    data = _minimal()
+    data["ai"] = {"model": "gpt-4o"}
+
+    assert parse_config(data).ai.model == "gpt-4o"
 
 
 def test_bad_daily_summary_time_raises():

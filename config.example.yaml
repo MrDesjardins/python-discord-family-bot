@@ -14,7 +14,7 @@ channels:
 
 # AI Q&A tuning (the OpenAI API key itself is a secret in .env).
 ai:
-  model: gpt-4o-mini
+  model: gpt-6.2-sol
   embedding_model: all-MiniLM-L6-v2
   max_context_messages: 50       # how many past messages to retrieve as context
   recency_halflife_days: 14      # recent messages weighted higher; this is the half-life

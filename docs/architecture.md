@@ -81,8 +81,12 @@ posted date is persisted via `bot_state_data_access` so a restart doesn't re-pos
 → `tasks.embedding_loop` (30s) embeds new rows → `@mention` → `channel_visibility.visible_channel_ids`
 (channels the asker can read, from live Discord role/overwrite permissions; private
 threads additionally require thread membership or `manage_threads`) →
-`ai_functions.answer_question` → retrieval restricted to those channels (a message also
-matches via its stored `parent_channel_id`, keeping public-thread history visible after
-the thread auto-archives) → embed question, `embeddings.rank_messages`
-(similarity × recency), top-k → OpenAI. A member who can see no channels gets no
-archived context (fail-closed).
+`ai_functions.answer_question` → exact text search plus semantic retrieval, scoped to
+the channel where the question was asked and the asker's readable channels. A message
+also matches via its stored `parent_channel_id`, keeping public-thread history visible
+after the thread auto-archives. Exact search includes messages awaiting embeddings and
+retrieves named entities and listing terms; semantic top-k supplements those matches.
+A member who can see no channels gets no archived context (fail-closed). Historical
+Discord messages require running `tools/backfill_history.py`; that script currently
+backfills only its configured five-week window, while live archiving starts when the bot
+is online.

@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 
 from deps.ai.ai_functions import answer_question
-from deps.channel_visibility import archival_parent_channel_id, visible_channel_ids
+from deps.channel_visibility import archival_parent_channel_id, history_channel_id, visible_channel_ids
 from deps.config import get_config
 from deps.log import print_error_log, print_log, print_warning_log
 from deps.message_data_access import store_message
@@ -89,8 +89,15 @@ class EventsCog(commands.Cog):
 
         # Only ground the answer on channels the asker can read (role-aware).
         visible = visible_channel_ids(message.guild, member) if member is not None else set()
+        history_channel = history_channel_id(message.guild, question, visible, message.channel.id)
         async with message.channel.typing():
-            answer = await answer_question(message.guild.id, question, visible)
+            answer = await answer_question(
+                message.guild.id,
+                question,
+                visible,
+                history_channel,
+                message.id,
+            )
 
         # Discord messages cap at 2000 chars.
         await message.reply(answer[:1990] if len(answer) > 1990 else answer)

@@ -121,4 +121,9 @@ are read from the project folder; passwordless via SSH keys + scoped NOPASSWD su
   on auto-archive, so anything keyed on live thread ids silently loses archived threads.
   That's why `message.parent_channel_id` is stored at archive time (public threads only):
   retrieval matches the parent channel and survives the thread leaving the cache.
+- **An archived message is not necessarily in the database or AI context.** Live
+  archiving starts only while the bot is online; `tools/backfill_history.py` is needed
+  for older Discord history. For channel-history questions, retrieval must search raw
+  text (including rows still awaiting embeddings) and use the named/readable channel,
+  instead of relying only on a small recency-weighted embedding top-k.
 ```

@@ -10,6 +10,7 @@ from deps.message_data_access import (
     archive_bot_message,
     get_embedded_messages_for_guild,
     get_messages_without_embedding,
+    get_relevant_messages_for_guild,
     set_message_embedding,
     store_message,
 )
@@ -91,3 +92,37 @@ def test_get_embedded_messages_matches_parent_channel(system_db):  # pylint: dis
     assert {mid for mid, *_ in get_embedded_messages_for_guild(1, {10})} == {1}
     # Private thread reachable only by members whose set contains the thread id itself.
     assert {mid for mid, *_ in get_embedded_messages_for_guild(1, {10, 40})} == {1, 2}
+
+
+def test_relevant_message_search_is_channel_scoped_and_includes_unembedded(
+    system_db,
+):  # pylint: disable=unused-argument
+    """Exact history search sees pending messages but honors readable and active channels."""
+    now = datetime.datetime(2026, 6, 1, 12, 0, tzinfo=datetime.timezone.utc)
+    store_message(1, 1, 10, "retirement-house", 100, "mom", "Zillow homes in Dover", now)
+    store_message(2, 1, 10, "retirement-house", 101, "dad", "Redfin listings near Hooksett", now)
+    store_message(3, 1, 20, "private", 102, "dad", "Zillow in Manchester", now)
+    store_message(4, 1, 30, "retirement-plans", 103, "mom", "Zillow in Concord", now)
+
+    rows = get_relevant_messages_for_guild(
+        1,
+        {10, 30},
+        ["zillow", "redfin"],
+        target_channel_id=10,
+    )
+
+    assert {row[0] for row in rows} == {1, 2}
+    assert all(row[5] == "retirement-house" for row in rows)
+    without_current = get_relevant_messages_for_guild(
+        1,
+        {10, 30},
+        ["zillow", "redfin"],
+        target_channel_id=10,
+        exclude_message_id=1,
+    )
+    assert {row[0] for row in without_current} == {2}
+    # A history-only query retrieves the newest raw messages in the same channel.
+    recent = get_relevant_messages_for_guild(1, {10, 30}, [], target_channel_id=10)
+    assert {row[0] for row in recent} == {1, 2}
+    # The active-channel restriction still excludes other visible channels.
+    assert get_embedded_messages_for_guild(1, {10, 30}, target_channel_id=10) == []

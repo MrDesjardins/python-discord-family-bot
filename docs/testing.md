@@ -36,7 +36,8 @@ Unit tests request no fixture and never open the database.
 - **Integration**: reminder data access + date helpers; the calendar pipeline
   (fake Google service → upsert → due-selection → mark reminded).
 - **System**: reminder CRUD, calendar CRUD (including the reschedule-resets-reminded
-  rule), and message archive + embedding storage — all on the copied seed DB.
+  rule), and message archive + embedding storage/search (including channel- and
+  visibility-scoped history lookups) — all on the copied seed DB.
 
 ## Conventions
 
