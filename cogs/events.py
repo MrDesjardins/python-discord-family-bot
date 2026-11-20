@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 
 from deps.ai.ai_functions import answer_question
+from deps.ai.discord_format import format_for_discord
 from deps.channel_visibility import archival_parent_channel_id, history_channel_id, visible_channel_ids
 from deps.config import get_config
 from deps.log import print_error_log, print_log, print_warning_log
@@ -99,8 +100,13 @@ class EventsCog(commands.Cog):
                 message.id,
             )
 
-        # Discord messages cap at 2000 chars.
-        await message.reply(answer[:1990] if len(answer) > 1990 else answer)
+        # Discord can't render Markdown tables and caps messages at 2000 chars:
+        # rewrite tables as lists and send long answers as follow-up messages.
+        # suppress_embeds keeps a list of links from spawning a wall of previews.
+        chunks = format_for_discord(answer) or ["Sorry, I don't have an answer for that."]
+        await message.reply(chunks[0], suppress_embeds=True)
+        for chunk in chunks[1:]:
+            await message.channel.send(chunk, suppress_embeds=True)
 
 
 async def setup(bot: MyBot) -> None:

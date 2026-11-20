@@ -24,6 +24,7 @@ deps/                         business logic + data access (no Discord types lea
   channel_visibility.py       channels/threads a member can read (AI permission filter)
   ai/embeddings.py            sentence-transformers + recency-weighted ranking
   ai/ai_functions.py          OpenAI chat grounded on retrieved context
+  ai/discord_format.py        tables -> bullet lists, split answers at Discord's 2000 chars
   values.py                   command-name constants + small fallbacks
   log.py                      print_log / print_warning_log / print_error_log
 ```
@@ -81,6 +82,10 @@ posted date is persisted via `bot_state_data_access` so a restart doesn't re-pos
 → `tasks.embedding_loop` (30s) embeds new rows → `@mention` → `channel_visibility.visible_channel_ids`
 (channels the asker can read, from live Discord role/overwrite permissions; private
 threads additionally require thread membership or `manage_threads`) →
+Before replying, `discord_format.format_for_discord` rewrites any Markdown table (Discord
+doesn't render them) as a bullet list and splits long answers into several messages;
+replies are sent with embeds suppressed so link lists don't spawn previews.
+
 `ai_functions.answer_question` → exact text search plus semantic retrieval, scoped to
 the channel where the question was asked and the asker's readable channels. A message
 also matches via its stored `parent_channel_id`, keeping public-thread history visible

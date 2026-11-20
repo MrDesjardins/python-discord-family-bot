@@ -127,3 +127,7 @@ are read from the project folder; passwordless via SSH keys + scoped NOPASSWD su
   text (including rows still awaiting embeddings) and use the named/readable channel,
   instead of relying only on a small recency-weighted embedding top-k.
 ```
+- **Discord doesn't render Markdown tables** (they show as raw `|` pipes) and caps a
+  message at 2000 chars. The AI system prompt forbids tables, and
+  `deps/ai/discord_format.py` converts any that slip through to bullet lists and splits
+  long answers instead of truncating them.

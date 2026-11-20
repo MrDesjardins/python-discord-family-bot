@@ -29,7 +29,11 @@ SYSTEM_PROMPT = (
     "answer unrelated general-knowledge questions normally. "
     "When asked what was discussed in a channel, use those retrieved messages and do not "
     "invent or infer a list that the messages do not support. "
-    "Be concise and warm."
+    "Be concise and warm. "
+    "Your reply is posted in Discord, which does NOT render Markdown tables: never use "
+    "tables. For lists or comparisons use numbered or bulleted lists, one item per line, "
+    "with **bold** for the item name and details after an em dash. Keep headings short "
+    "(### at most) and keep the whole reply under about 1,800 characters when possible."
 )
 
 _SEARCH_STOP_WORDS = {
